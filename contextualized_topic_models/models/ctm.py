@@ -15,7 +15,6 @@ from tqdm import tqdm
 from contextualized_topic_models.utils.early_stopping.early_stopping import EarlyStopping
 from contextualized_topic_models.networks.decoding_network import DecoderNetwork
 
-
 class CTM:
     """Class to train the contextualized topic model. This is the more general class that we are keeping to
     avoid braking code, users should use the two subclasses ZeroShotTM and CombinedTm to do topic modeling.
@@ -45,7 +44,7 @@ class CTM:
     def __init__(self, bow_size, contextual_size, inference_type="combined", n_components=10, model_type='prodLDA',
                  hidden_sizes=(100, 100), activation='softplus', dropout=0.2, learn_priors=True, batch_size=64,
                  lr=2e-3, momentum=0.99, solver='adam', num_epochs=100, reduce_on_plateau=False,
-                 num_data_loader_workers=mp.cpu_count(), label_size=0, loss_weights=None):
+                 num_data_loader_workers=mp.cpu_count(), label_size=0, loss_weights=None, shuffle=True):
 
         self.device = (
                 torch.device("cuda")
@@ -95,6 +94,7 @@ class CTM:
         self.reduce_on_plateau = reduce_on_plateau
         self.num_data_loader_workers = num_data_loader_workers
         self.training_doc_topic_distributions = None
+        self.shuffle = shuffle
 
         if loss_weights:
             self.weights = loss_weights
@@ -229,7 +229,7 @@ class CTM:
         :param verbose: verbose
         :param patience: How long to wait after last time validation loss improved. Default: 5
         :param delta: Minimum change in the monitored quantity to qualify as an improvement. Default: 0
-        :param n_samples: int, number of samples of the document topic distribution (default: 20). Give None to get the document topic distribution later.
+        :param n_samples: int, number of samples of the document topic distribution (default: 20) Give None to get the document topic distribution later.
 
         """
         # Print settings to output file
@@ -258,7 +258,7 @@ class CTM:
         if self.validation_data is not None:
             self.early_stopping = EarlyStopping(patience=patience, verbose=verbose, path=save_dir, delta=delta)
         train_loader = DataLoader(
-            self.train_data, batch_size=self.batch_size, shuffle=True,
+            self.train_data, batch_size=self.batch_size, shuffle=self.shuffle,
             num_workers=self.num_data_loader_workers)
 
         # init training variables
@@ -277,7 +277,7 @@ class CTM:
             pbar.update(1)
 
             if self.validation_data is not None:
-                validation_loader = DataLoader(self.validation_data, batch_size=self.batch_size, shuffle=True,
+                validation_loader = DataLoader(self.validation_data, batch_size=self.batch_size, shuffle=self.shuffle,
                                                num_workers=self.num_data_loader_workers)
                 # train epoch
                 s = datetime.datetime.now()
@@ -380,7 +380,7 @@ class CTM:
         self.model.eval()
 
         loader = DataLoader(
-            dataset, batch_size=self.batch_size, shuffle=False,
+            dataset, batch_size=self.batch_size, shuffle=self.shuffle,
             num_workers=self.num_data_loader_workers)
         pbar = tqdm(n_samples, position=0, leave=True)
         final_thetas = None
@@ -469,45 +469,27 @@ class CTM:
                    self.reduce_on_plateau)
         return model_dir
 
-    def save(self, models_dir=None):
+    def save(self, model_dir):
         """
-        Save model. (Experimental Feature, not tested)
+        Save model.
 
-        :param models_dir: path to directory for saving NN models.
+        :param model_dir: path to directory for saving NN models.
         """
-        warnings.simplefilter('always', Warning)
-        warnings.warn("This is an experimental feature that we has not been fully tested. Refer to the following issue:"
-                      "https://github.com/MilaNLProc/contextualized-topic-models/issues/38",
-                      Warning)
 
-        if (self.model is not None) and (models_dir is not None):
+        if (self.model is not None):
 
-            model_dir = self._format_file()
-            if not os.path.isdir(os.path.join(models_dir, model_dir)):
-                os.makedirs(os.path.join(models_dir, model_dir))
-
-            filename = "epoch_{}".format(self.nn_epoch) + '.pth'
-            fileloc = os.path.join(models_dir, model_dir, filename)
-            with open(fileloc, 'wb') as file:
+            with open(model_dir, 'wb') as file:
                 torch.save({'state_dict': self.model.state_dict(),
                             'dcue_dict': self.__dict__}, file)
 
-    def load(self, model_dir, epoch):
+    def load(self, model_dir):
         """
         Load a previously trained model. (Experimental Feature, not tested)
 
         :param model_dir: directory where models are saved.
-        :param epoch: epoch of model to load.
         """
 
-        warnings.simplefilter('always', Warning)
-        warnings.warn("This is an experimental feature that we has not been fully tested. Refer to the following issue:"
-                      "https://github.com/MilaNLProc/contextualized-topic-models/issues/38",
-                      Warning)
-
-        epoch_file = "epoch_" + str(epoch) + ".pth"
-        model_file = os.path.join(model_dir, epoch_file)
-        with open(model_file, 'rb') as model_dict:
+        with open(model_dir, 'rb') as model_dict:
             checkpoint = torch.load(model_dict, map_location=torch.device(self.device))
 
         for (k, v) in checkpoint['dcue_dict'].items():

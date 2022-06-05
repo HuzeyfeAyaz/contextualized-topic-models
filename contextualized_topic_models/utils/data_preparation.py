@@ -5,7 +5,7 @@ import warnings
 from contextualized_topic_models.datasets.dataset import CTMDataset
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import OneHotEncoder
-
+import h5py
 
 def get_bag_of_words(data, min_length):
     """
@@ -60,18 +60,20 @@ def check_max_local_length(max_seq_length, texts):
 
 class TopicModelDataPreparation:
 
-    def __init__(self, contextualized_model=None, show_warning=True, max_seq_length=128):
+    def __init__(self, contextualized_model=None, retained_indices=None, show_warning=True, max_seq_length=128):
         self.contextualized_model = contextualized_model
         self.vocab = []
         self.id2token = {}
         self.vectorizer = None
         self.label_encoder = None
         self.show_warning = show_warning
+        self.valid_instances = [np.ndarray, h5py.Dataset]
+        self.retained_indices = retained_indices
         self.max_seq_length = max_seq_length
 
-    def load(self, contextualized_embeddings, bow_embeddings, id2token, labels=None):
+    def load(self, contextualized_embeddings, bow_embeddings, id2token, retained_indices, labels=None):
         return CTMDataset(
-            X_contextual=contextualized_embeddings, X_bow=bow_embeddings, idx2token=id2token, labels=labels)
+            X_contextual=contextualized_embeddings, X_bow=bow_embeddings, idx2token=id2token, retained_indices=retained_indices, labels=labels)
 
     def fit(self, text_for_contextual, text_for_bow, labels=None, custom_embeddings=None):
         """
@@ -84,13 +86,9 @@ class TopicModelDataPreparation:
         """
 
         if custom_embeddings is not None:
-            assert len(text_for_contextual) == len(custom_embeddings)
-
-            if text_for_bow is not None:
-                assert len(custom_embeddings) == len(text_for_bow)
-
-            if type(custom_embeddings).__module__ != 'numpy':
-                raise TypeError("contextualized_embeddings must be a numpy.ndarray type object")
+            instance_check = any([isinstance(custom_embeddings, i) for i in self.valid_instances])
+            if not instance_check:
+                raise TypeError(f"custom_embeddings must be one of: {self.valid_instances}")
 
         if text_for_bow is not None:
             assert len(text_for_contextual) == len(text_for_bow)
@@ -102,8 +100,6 @@ class TopicModelDataPreparation:
         self.vectorizer = CountVectorizer()
 
         train_bow_embeddings = self.vectorizer.fit_transform(text_for_bow)
-
-        # if the user is passing custom embeddings we don't need to create the embeddings using the model
 
         if custom_embeddings is None:
             train_contextualized_embeddings = bert_embeddings_from_list(
@@ -120,7 +116,8 @@ class TopicModelDataPreparation:
             encoded_labels = None
         return CTMDataset(
             X_contextual=train_contextualized_embeddings, X_bow=train_bow_embeddings,
-            idx2token=self.id2token, labels=encoded_labels)
+            idx2token=self.id2token, retained_indices=self.retained_indices,
+            labels=encoded_labels)
 
     def transform(self, text_for_contextual, text_for_bow=None, custom_embeddings=None, labels=None):
         """
@@ -135,17 +132,8 @@ class TopicModelDataPreparation:
         :param labels: list of labels associated with each document (optional).
         """
 
-        if custom_embeddings is not None:
-            assert len(text_for_contextual) == len(custom_embeddings)
-
-            if text_for_bow is not None:
-                assert len(custom_embeddings) == len(text_for_bow)
-
         if text_for_bow is not None:
             assert len(text_for_contextual) == len(text_for_bow)
-
-        if self.contextualized_model is None:
-            raise Exception("You should define a contextualized model if you want to create the embeddings")
 
         if text_for_bow is not None:
             test_bow_embeddings = self.vectorizer.transform(text_for_bow)
@@ -172,4 +160,4 @@ class TopicModelDataPreparation:
             encoded_labels = None
 
         return CTMDataset(X_contextual=test_contextualized_embeddings, X_bow=test_bow_embeddings,
-                          idx2token=self.id2token, labels=encoded_labels)
+                          idx2token=self.id2token, retained_indices=self.retained_indices, labels=encoded_labels)

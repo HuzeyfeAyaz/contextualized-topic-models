@@ -6,7 +6,7 @@ import pickle
 import warnings
 import ipywidgets as widgets
 from IPython.display import display
-
+import h5py
 
 class Kitty:
     """
@@ -22,6 +22,7 @@ class Kitty:
         self.topics_num = 0
         self.widget_holder = None
         self.show_warning = show_warning
+        self.valid_instances = [np.ndarray, h5py.Dataset]
 
     def train(self, documents,
               embedding_model=None,
@@ -51,8 +52,9 @@ class Kitty:
             raise Exception('Either embedding_model or custom_embeddings must be defined')
 
         if custom_embeddings is not None:
-            if type(custom_embeddings).__module__ != 'numpy':
-                raise TypeError("custom_embeddings must be a numpy.ndarray type object")
+            instance_check = any([isinstance(custom_embeddings, i) for i in self.valid_instances])
+            if not instance_check:
+                raise TypeError(f"custom_embeddings must be one of: {self.valid_instances}")
 
             # in order to prevent an error caused from embedding size
             contextual_size = custom_embeddings.shape[1]
@@ -64,16 +66,8 @@ class Kitty:
                 documents=documents, stopwords_list=stopwords_list, vocabulary_size=max_words)
         preprocessed_documents, unpreprocessed_documents, vocab, retained_indices = sp.preprocess()
 
-        if (self.show_warning and custom_embeddings is not None and
-                len(preprocessed_documents) != len(custom_embeddings)):
-            custom_embeddings = custom_embeddings[retained_indices]
-            warnings.simplefilter('always', UserWarning)
-            warnings.warn(f"The size of the embeddings ({custom_embeddings.shape[0]}) you provide doesn't match with "
-                          f"the preprocessed_documents ({len(preprocessed_documents)})."
-                          "Please check the size of your embeddings if you are not sure.")
-
         self.qt = TopicModelDataPreparation(
-            embedding_model, show_warning=self.show_warning)
+            embedding_model, retained_indices, show_warning=self.show_warning)
         training_dataset = self.qt.fit(text_for_contextual=unpreprocessed_documents,
                                        text_for_bow=preprocessed_documents,
                                        custom_embeddings=custom_embeddings)
