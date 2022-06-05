@@ -382,7 +382,8 @@ class CTM:
             dataset, batch_size=self.batch_size, shuffle=False,
             num_workers=self.num_data_loader_workers)
         pbar = tqdm(n_samples, position=0, leave=True)
-        final_thetas = []
+        final_thetas = None
+        
         for sample_index in range(n_samples):
             with torch.no_grad():
                 collect_theta = []
@@ -411,9 +412,13 @@ class CTM:
                 pbar.update(1)
                 pbar.set_description("Sampling: [{}/{}]".format(sample_index + 1, n_samples))
 
-                final_thetas.append(np.array(collect_theta))
+                if final_thetas is None:
+                    final_thetas = np.array(collect_theta)
+                else:
+                    final_thetas += np.array(collect_theta)
+
         pbar.close()
-        return np.sum(final_thetas, axis=0) / n_samples
+        return final_thetas / n_samples
 
     def get_most_likely_topic(self, doc_topic_distribution):
         """ get the most likely topic for each document
