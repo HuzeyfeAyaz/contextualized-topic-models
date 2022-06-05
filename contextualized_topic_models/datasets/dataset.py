@@ -29,10 +29,10 @@ class CTMDataset(Dataset):
         idx = self.retained_indices[i]
         if type(self.X_bow[i]) == scipy.sparse.csr.csr_matrix:
             X_bow = torch.FloatTensor(self.X_bow[i].todense())
-            X_contextual = torch.FloatTensor(self.X_contextual[idx].astype(np.float16))
+            X_contextual = torch.FloatTensor(self.X_contextual[idx])
         else:
             X_bow = torch.FloatTensor(self.X_bow[i])
-            X_contextual = torch.FloatTensor(self.X_contextual[idx].astype(np.float16))
+            X_contextual = torch.FloatTensor(self.X_contextual[idx])
 
         return_dict = {'X_bow': X_bow, 'X_contextual': X_contextual}
 
