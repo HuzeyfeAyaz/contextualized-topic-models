@@ -229,7 +229,7 @@ class CTM:
         :param verbose: verbose
         :param patience: How long to wait after last time validation loss improved. Default: 5
         :param delta: Minimum change in the monitored quantity to qualify as an improvement. Default: 0
-        :param n_samples: int, number of samples of the document topic distribution (default: 20)
+        :param n_samples: int, number of samples of the document topic distribution (default: 20). Give None to get the document topic distribution later.
 
         """
         # Print settings to output file
@@ -309,7 +309,8 @@ class CTM:
                 len(self.train_data) * self.num_epochs, train_loss, e - s))
 
         pbar.close()
-        self.training_doc_topic_distributions = self.get_doc_topic_distribution(train_dataset, n_samples)
+        if n_samples is not None:
+            self.training_doc_topic_distributions = self.get_doc_topic_distribution(train_dataset, n_samples)
 
     def _validation(self, loader):
         """Validation epoch."""
