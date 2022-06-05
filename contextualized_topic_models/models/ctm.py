@@ -582,7 +582,7 @@ class CTM:
             predicted_topics.append(predicted_topic)
         return predicted_topics
 
-    def get_ldavis_data_format(self, vocab, dataset, n_samples):
+    def get_ldavis_data_format(self, vocab, dataset, n_samples=20, doc_topic_distribution=None):
         """
         Returns the data that can be used in input to pyldavis to plot
         the topics
@@ -590,7 +590,9 @@ class CTM:
         term_frequency = np.ravel(dataset.X_bow.sum(axis=0))
         doc_lengths = np.ravel(dataset.X_bow.sum(axis=1))
         term_topic = self.get_topic_word_distribution()
-        doc_topic_distribution = self.get_doc_topic_distribution(dataset, n_samples=n_samples)
+        
+        if doc_topic_distribution is None:
+            doc_topic_distribution = self.get_doc_topic_distribution(dataset, n_samples=n_samples)
 
         data = {'topic_term_dists': term_topic,
                 'doc_topic_dists': doc_topic_distribution,
